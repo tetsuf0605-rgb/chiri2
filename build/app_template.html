@@ -326,6 +326,8 @@ button,input,textarea{font-family:inherit}
     <div id="screen-correction-list" class="screen hidden">
       <div class="navbar"><button class="navbar__back" id="correctionBack">‹ 設定</button><div class="navbar__title">問題データを訂正</div></div>
       <div class="scrollarea"><div class="content">
+        <div class="section-label">ちいき</div>
+        <div class="chips" id="correctionRegionChips" style="margin-bottom:6px"></div>
         <p style="font-size:13px;color:var(--label2);margin:12px 2px">行をタップすると名前・よみ・別解を編集できます。「要確認」は写真からの判読に自信が低いパーツです。</p>
         <div class="ig-list" id="correctionList"></div>
         <div class="section-label">エクスポート</div>
@@ -354,13 +356,8 @@ button,input,textarea{font-family:inherit}
    chiri2 - 地名ドリル世界
    ========================================================================= */
 
-/* ---------- 埋め込みデータ（tools/make_map.py が生成） ---------- */
-const SVG_SEA = `__SVG_SEA__`;
-__PARTS_SEA__
-
-const MAPS = [
-  { id:"sea", title:"東南アジア", svg:SVG_SEA, parts:MAP_PARTS_SEA }
-];
+/* ---------- 埋め込みデータ（tools/make_map.py が生成、tools/assemble.py が焼き込み） ---------- */
+__REGIONS_JS__
 
 /* ---------- rekishi型エンジンの器（今回は空。ロジックのみ搭載） ---------- */
 const TERMS = [];
@@ -552,7 +549,7 @@ PanZoom.prototype.focusOnIds = function(ids){
 let mapPanZoom = null;
 
 /* ---------- 画面切り替え ---------- */
-const state = { tab:"map", region:null, quiz:null };
+const state = { tab:"map", region:null, quiz:null, correctionRegion:null };
 
 function showTab(name){
   state.tab = name;
@@ -691,7 +688,7 @@ function startMapQuiz(reviewOnly){
   }
   const d = getData(); d.resume=null; saveData(d);
   state.quiz = { items, idx:0, score:0, wrong:[], formMode:setupOpts.form, region:state.region, answered:false };
-  document.getElementById("mapSvgHost").innerHTML = SVG_SEA;
+  document.getElementById("mapSvgHost").innerHTML = regionById(state.region).svg;
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   if(!mapPanZoom) mapPanZoom = new PanZoom(document.getElementById("mapViewport"));
   mapPanZoom.setSvg(svgEl);
@@ -951,7 +948,7 @@ function resumeMapQuiz(){
   if(items.length===0){ d.resume=null; saveData(d); return; }
   state.region = d.resume.region;
   state.quiz = { items, idx:Math.min(d.resume.idx, items.length-1), score:d.resume.score, wrong:[], formMode:d.resume.formMode, region:d.resume.region };
-  document.getElementById("mapSvgHost").innerHTML = SVG_SEA;
+  document.getElementById("mapSvgHost").innerHTML = regionById(d.resume.region).svg;
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   if(!mapPanZoom) mapPanZoom = new PanZoom(document.getElementById("mapViewport"));
   mapPanZoom.setSvg(svgEl);
@@ -1017,11 +1014,25 @@ function renderSettingsHome(){
   updateOverrideCountLabel();
   showSettingsScreen("home");
 }
-document.getElementById("openCorrectionBtn").onclick = ()=>{ renderCorrectionList(); showSettingsScreen("correction"); };
+document.getElementById("openCorrectionBtn").onclick = ()=>{
+  state.correctionRegion = state.correctionRegion || state.region || MAPS[0].id;
+  renderCorrectionRegionChips(); renderCorrectionList(); showSettingsScreen("correction");
+};
 document.getElementById("correctionBack").onclick = ()=>{ renderSettingsHome(); };
 
+function renderCorrectionRegionChips(){
+  const box = document.getElementById("correctionRegionChips"); box.innerHTML="";
+  MAPS.forEach(region=>{
+    const b = document.createElement("button");
+    b.className = "chip"+(region.id===state.correctionRegion?" on":"");
+    b.textContent = region.title;
+    b.onclick = ()=>{ state.correctionRegion = region.id; renderCorrectionRegionChips(); renderCorrectionList(); };
+    box.appendChild(b);
+  });
+}
+
 function renderCorrectionList(){
-  const regionId = "sea";
+  const regionId = state.correctionRegion || MAPS[0].id;
   const region = regionById(regionId);
   const ov = getOverrides()[regionId] || {};
   const list = document.getElementById("correctionList"); list.innerHTML="";
@@ -1122,7 +1133,8 @@ document.getElementById("exportOverridesBtn").onclick = ()=>{
 };
 document.getElementById("clearOverridesBtn").onclick = ()=>{
   if(confirm("この地域の訂正内容をすべて消します。よろしいですか？")){
-    const o = getOverrides(); delete o["sea"]; saveOverrides(o);
+    const regionId = state.correctionRegion || MAPS[0].id;
+    const o = getOverrides(); delete o[regionId]; saveOverrides(o);
     renderCorrectionList(); updateOverrideCountLabel();
     toast("訂正をクリアしました");
   }
