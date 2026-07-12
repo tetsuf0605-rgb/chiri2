@@ -1,0 +1,1138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>地名ドリル世界</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#007AFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="chiri2">
+<style>
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --label:#000000; --label2:#6d6d72; --label3:#c7c7cc;
+  --sep:rgba(60,60,67,.29); --accent:#007AFF; --red:#ff3b30; --green:#34c759; --orange:#ff9500;
+  --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  --tabbar-h:64px; --navbar-h:44px;
+}
+*,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);color:var(--label);background:var(--bg);line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,textarea{font-family:inherit}
+#app{max-width:560px;margin:0 auto;min-height:100dvh;position:relative;
+  padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom));}
+.hidden{display:none !important}
+
+/* ---- navbar (standard, detail screens) ---- */
+.navbar{position:sticky;top:0;z-index:10;height:calc(var(--navbar-h) + env(safe-area-inset-top));
+  padding-top:env(safe-area-inset-top);display:flex;align-items:center;
+  background:rgba(242,242,247,.88);backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:.5px solid var(--sep);}
+.navbar__back{border:none;background:none;color:var(--accent);font-size:17px;padding:0 6px 0 12px;min-height:44px}
+.navbar__title{flex:1;text-align:center;font-size:17px;font-weight:600;margin-right:44px}
+
+/* ---- large title (list/home screens) ---- */
+.navbar-small{position:sticky;top:0;z-index:10;height:calc(var(--navbar-h) + env(safe-area-inset-top));
+  padding-top:env(safe-area-inset-top);display:flex;align-items:center;justify-content:center;
+  background:rgba(242,242,247,.88);backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:.5px solid transparent;opacity:0;pointer-events:none;transition:opacity .15s;}
+.navbar-small.show{opacity:1;border-bottom-color:var(--sep)}
+.navbar-small__title{font-size:17px;font-weight:600}
+.large-title{padding:6px 16px 10px}
+.large-title h1{font-size:34px;font-weight:700;margin:0}
+.large-title p{margin:2px 0 0;font-size:13px;color:var(--label2)}
+
+.scrollarea{height:calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch}
+.content{padding:0 16px 24px}
+
+/* ---- inset grouped list ---- */
+.ig-title{padding:16px 16px 6px;font-size:13px;color:var(--label2);text-transform:uppercase;letter-spacing:.02em}
+.ig-list{background:var(--card);border-radius:10px;overflow:hidden;box-shadow:0 0 0 .5px var(--sep)}
+.ig-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;
+  border-bottom:.5px solid var(--sep);min-height:44px;background:var(--card);width:100%;border:none;text-align:left;color:var(--label);font-size:16px}
+.ig-row:last-child{border-bottom:none}
+.ig-row.tap{cursor:pointer}
+.ig-row.tap:active{background:#e9e9ee}
+.ig-row__main{flex:1;min-width:0}
+.ig-row__name{font-size:16px}
+.ig-row__sub{font-size:12.5px;color:var(--label2);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ig-row__chev{color:var(--label3);font-size:15px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#eee;color:#666;margin-left:6px}
+.badge--check{background:#fff2d6;color:#a06a00}
+.badge--wrong{background:#ffe4e2;color:#c22}
+.badge--info{background:#e5f1ff;color:var(--accent)}
+
+/* ---- cards / stats ---- */
+.card{background:var(--card);border-radius:14px;padding:16px;margin:14px 0;box-shadow:0 0 0 .5px var(--sep)}
+.stat-row{display:flex;gap:10px}
+.stat{flex:1;text-align:center;background:var(--bg);border-radius:10px;padding:10px 4px}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:11px;color:var(--label2)}
+.section-label{font-size:13px;color:var(--label2);margin:16px 2px 8px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--sep);background:var(--card);color:var(--label);border-radius:999px;
+  padding:9px 14px;font-size:14px;min-height:38px}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ---- buttons ---- */
+.btn{display:block;width:100%;border:none;border-radius:12px;padding:15px;font-size:17px;font-weight:600;
+  min-height:48px;text-align:center}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:active{opacity:.85}
+.btn.ghost{background:var(--bg);color:var(--label)}
+.btn.danger{background:#fff;color:var(--red);border:1px solid var(--sep)}
+.btn.sm{padding:11px;font-size:15px}
+.btn+.btn{margin-top:10px}
+.btn:disabled{opacity:.4}
+.empty-card{text-align:center;color:var(--label2);padding:40px 16px;font-size:15px;line-height:1.8}
+
+/* ---- map viewport ---- */
+.map-viewport{position:relative;overflow:hidden;border-radius:14px;background:#eaf2fb;box-shadow:0 0 0 .5px var(--sep);touch-action:none}
+.map-viewport svg{display:block;width:100%;height:auto;transform-origin:0 0;will-change:transform}
+.map-hint{font-size:12px;color:var(--label2);text-align:center;margin-top:6px}
+.zoom-controls{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:2}
+.zoom-controls button{width:34px;height:34px;border-radius:9px;border:none;background:rgba(255,255,255,.92);
+  box-shadow:0 0 0 .5px var(--sep);font-size:18px;font-weight:700;color:var(--label)}
+
+/* part highlight states (targets svg internals) */
+.part-target .dot{fill:#ff9500 !important}
+.part-target.land,.part-target.river{stroke:#ff9500 !important;stroke-width:3 !important}
+.part-target.grid-q{stroke:#ff9500 !important;stroke-width:2.6 !important}
+.part-correct .dot{fill:#34c759 !important}
+.part-correct.land,.part-correct.river{stroke:#34c759 !important;stroke-width:3 !important}
+.part-correct.grid-q{stroke:#34c759 !important;stroke-width:2.6 !important}
+.part-wrong .dot{fill:#ff3b30 !important}
+@keyframes partBlink{0%,100%{opacity:1}50%{opacity:.2}}
+.part-blink{animation:partBlink .5s ease-in-out 3}
+
+/* ---- quiz ---- */
+.qbar{display:flex;justify-content:space-between;font-size:13px;color:var(--label2);margin:2px 2px 6px}
+.prog{height:6px;background:#e5e5ea;border-radius:99px;overflow:hidden;margin-bottom:12px}
+.prog>i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.qtag{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--bg);color:var(--accent);margin-bottom:8px}
+.qtext{font-size:18px;font-weight:600;line-height:1.5;margin-bottom:4px}
+.opts{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.opt{display:block;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--sep);border-radius:11px;
+  padding:13px 14px;font-size:16px;color:var(--label);min-height:48px}
+.opt.correct{border-color:var(--green);background:#eafaf0}
+.opt.wrong{border-color:var(--red);background:#fdeceb}
+.opt.dim{opacity:.5}
+.ansrow{margin-top:14px}
+.ansinput{width:100%;padding:14px;font-size:17px;border-radius:11px;border:1.5px solid var(--sep);background:var(--card)}
+.ansinput.correct{border-color:var(--green);background:#eafaf0}
+.ansinput.wrong{border-color:var(--red);background:#fdeceb}
+.selfrow{display:flex;gap:10px;margin-top:10px}
+.selfrow .btn{margin-top:0}
+.btn.maru{background:var(--green);color:#fff}
+.btn.batsu{background:#fff;color:var(--red);border:1px solid var(--sep)}
+.fb{border-radius:11px;padding:12px 14px;margin-top:14px;font-size:14.5px}
+.fb.ok{background:#eafaf0;color:#1f8a44}
+.fb.ng{background:#fdeceb;color:#c22}
+.fb b{font-size:16px;display:block;margin-bottom:2px}
+
+/* ---- sheet modal ---- */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:flex-end;
+  opacity:0;pointer-events:none;transition:opacity .2s}
+.sheet-overlay.show{opacity:1;pointer-events:auto}
+.sheet{background:var(--bg);width:100%;max-width:560px;margin:0 auto;border-radius:16px 16px 0 0;
+  padding:10px 18px calc(18px + env(safe-area-inset-bottom));max-height:86vh;overflow-y:auto;
+  transform:translateY(100%);transition:transform .22s}
+.sheet-overlay.show .sheet{transform:translateY(0)}
+.sheet__handle{width:36px;height:5px;background:#d1d1d6;border-radius:3px;margin:6px auto 14px}
+.sheet h3{margin:0 0 14px;font-size:18px}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:13px;color:var(--label2);margin-bottom:4px;font-weight:600}
+.form-field{width:100%;min-height:44px;border:1px solid var(--sep);border-radius:10px;padding:0 12px;font-size:16px;background:var(--card)}
+.sheet-actions{display:flex;gap:8px;margin-top:16px}
+.sheet-actions .btn{margin-top:0}
+
+/* ---- centered modal (export etc) ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--card);border-radius:14px;padding:18px;max-width:420px;width:100%;max-height:82vh;overflow-y:auto}
+.modal h3{margin:0 0 10px;font-size:17px}
+.modal textarea{width:100%;min-height:160px;border:1px solid var(--sep);border-radius:10px;padding:10px;font-size:13px;font-family:ui-monospace,monospace;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+
+/* ---- toast ---- */
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);
+  background:rgba(20,20,22,.9);color:#fff;padding:9px 16px;border-radius:99px;font-size:13.5px;z-index:80;
+  opacity:0;transition:opacity .2s}
+.toast.show{opacity:1}
+
+/* ---- tabbar ---- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;display:flex;z-index:40;
+  background:rgba(249,249,249,.86);backdrop-filter:blur(20px) saturate(180%);
+  border-top:.5px solid var(--sep);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar__btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding:6px 2px 4px;font-size:10px;color:var(--label2);border:none;background:none}
+.tabbar__btn.active{color:var(--accent);font-weight:600}
+.tabbar__icon{font-size:22px;line-height:1}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ MAP TAB ============ -->
+  <section id="tab-map" class="tab-screen">
+
+    <div id="screen-map-home" class="screen">
+      <div class="navbar-small"><div class="navbar-small__title">地図</div></div>
+      <div class="scrollarea" id="scrollMapHome">
+        <div class="large-title"><h1>地図</h1><p>白地図で地名を覚えよう</p></div>
+        <div class="content">
+          <div class="ig-title">ちいき</div>
+          <div class="ig-list" id="regionList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-map-setup" class="screen hidden">
+      <div class="navbar"><button class="navbar__back" id="setupBack">‹ 地図</button><div class="navbar__title" id="setupTitle">東南アジア</div></div>
+      <div class="scrollarea"><div class="content">
+        <button class="btn primary hidden" id="setupResumeBtn">▶ 続きから再開</button>
+        <div class="card">
+          <div class="stat-row">
+            <div class="stat"><b id="setupSeen">0</b><span>のべ解答</span></div>
+            <div class="stat"><b id="setupAcc">—</b><span>正答率</span></div>
+            <div class="stat"><b id="setupWrong">0</b><span>にがて</span></div>
+          </div>
+          <div class="section-label">もんだい数</div>
+          <div class="chips" id="setupCountChips">
+            <button class="chip" data-count="10">10問</button>
+            <button class="chip on" data-count="20">20問</button>
+            <button class="chip" data-count="0">ぜんぶ</button>
+          </div>
+          <div class="section-label">出題方向</div>
+          <div class="chips" id="setupDirChips">
+            <button class="chip on" data-dir="both">位置＋名前</button>
+            <button class="chip" data-dir="A">位置あてのみ</button>
+            <button class="chip" data-dir="B">名前あてのみ</button>
+          </div>
+          <div class="section-label">名前あての形式</div>
+          <div class="chips" id="setupFormChips">
+            <button class="chip on" data-form="mc">4択</button>
+            <button class="chip" data-form="desc">記述（自己採点）</button>
+          </div>
+          <button class="btn primary" id="setupStartBtn" style="margin-top:18px">スタート</button>
+          <button class="btn ghost sm" id="setupReviewBtn">にがてな問題だけ復習する</button>
+        </div>
+      </div></div>
+    </div>
+
+    <div id="screen-map-quiz" class="screen hidden">
+      <div class="navbar"><button class="navbar__back" id="quizQuitBtn">やめる</button><div class="navbar__title">出題</div></div>
+      <div class="scrollarea"><div class="content">
+        <div class="qbar"><span id="quizPos">1 / 20</span><span id="quizScore">正解 0</span></div>
+        <div class="prog"><i id="quizProg" style="width:0%"></i></div>
+        <div class="card">
+          <span class="qtag" id="quizTag">位置あて</span>
+          <div class="qtext" id="quizText"></div>
+          <div class="map-viewport" id="mapViewport" style="margin-top:12px">
+            <div class="zoom-controls">
+              <button id="zoomIn">＋</button>
+              <button id="zoomOut">－</button>
+              <button id="zoomReset">⟲</button>
+            </div>
+            <div id="mapSvgHost"></div>
+          </div>
+          <p class="map-hint">ピンチでズーム／指でパンできます</p>
+          <div id="quizBody"></div>
+          <div id="quizFeedback"></div>
+        </div>
+        <button class="btn primary hidden" id="quizNextBtn">次へ</button>
+      </div></div>
+    </div>
+
+    <div id="screen-map-result" class="screen hidden">
+      <div class="navbar"><span class="navbar__back"></span><div class="navbar__title">結果</div></div>
+      <div class="scrollarea"><div class="content">
+        <div class="card" style="text-align:center">
+          <div style="font-size:44px;font-weight:700;color:var(--accent)"><span id="resultScore">0</span><span style="font-size:20px;color:var(--label2)" id="resultTotal"> / 0</span></div>
+          <p id="resultMsg" style="margin:6px 0 0"></p>
+        </div>
+        <div class="ig-title" id="resultWrongTitle" style="display:none">まちがえた問題</div>
+        <div class="ig-list" id="resultWrongList"></div>
+        <button class="btn primary" id="resultAgainBtn" style="margin-top:16px">まちがえた問題をもう一度</button>
+        <button class="btn ghost" id="resultHomeBtn">地図トップへ戻る</button>
+      </div></div>
+    </div>
+
+  </section>
+
+  <!-- ============ QUIZ TAB ============ -->
+  <section id="tab-quiz" class="tab-screen hidden">
+    <div class="navbar-small"><div class="navbar-small__title">クイズ</div></div>
+    <div class="scrollarea" id="scrollQuizHome">
+      <div class="large-title"><h1>クイズ</h1><p>一問一答クイズ</p></div>
+      <div class="content">
+        <div class="card empty-card" id="quizHomeEmpty">準備中です。<br>ノートのデータが追加されるとここに問題が表示されます。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATS TAB ============ -->
+  <section id="tab-stats" class="tab-screen hidden">
+    <div class="navbar-small"><div class="navbar-small__title">せいせき</div></div>
+    <div class="scrollarea" id="scrollStats">
+      <div class="large-title"><h1>せいせき</h1></div>
+      <div class="content">
+        <div class="card">
+          <div class="stat-row">
+            <div class="stat"><b id="statSeen">0</b><span>のべ解答</span></div>
+            <div class="stat"><b id="statAcc">—</b><span>正答率</span></div>
+            <div class="stat"><b id="statWrong">0</b><span>にがて</span></div>
+          </div>
+        </div>
+        <div class="ig-title">パーツ別せいせき</div>
+        <div class="ig-list" id="statPartList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS TAB ============ -->
+  <section id="tab-settings" class="tab-screen hidden">
+
+    <div id="screen-settings-home" class="screen">
+      <div class="navbar-small"><div class="navbar-small__title">設定</div></div>
+      <div class="scrollarea" id="scrollSettings">
+        <div class="large-title"><h1>設定</h1></div>
+        <div class="content">
+          <div class="ig-title">記録</div>
+          <div class="ig-list">
+            <button class="ig-row tap" id="resetRecordsBtn"><span class="ig-row__name" style="color:var(--red)">記録をリセット</span></button>
+          </div>
+
+          <div class="ig-title">問題データ</div>
+          <div class="ig-list">
+            <button class="ig-row tap" id="openCorrectionBtn">
+              <div class="ig-row__main"><div class="ig-row__name">問題データを訂正</div>
+                <div class="ig-row__sub" id="overrideCountLabel">訂正0件適用中</div></div>
+              <span class="ig-row__chev">›</span>
+            </button>
+          </div>
+
+          <div class="ig-title">アプリ情報</div>
+          <div class="ig-list">
+            <div class="ig-row"><span class="ig-row__name">アプリ名</span><span class="ig-row__sub">地名ドリル世界（chiri2）</span></div>
+            <div class="ig-row"><span class="ig-row__name">データ</span><span class="ig-row__sub">Natural Earth (Public Domain)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-correction-list" class="screen hidden">
+      <div class="navbar"><button class="navbar__back" id="correctionBack">‹ 設定</button><div class="navbar__title">問題データを訂正</div></div>
+      <div class="scrollarea"><div class="content">
+        <p style="font-size:13px;color:var(--label2);margin:12px 2px">行をタップすると名前・よみ・別解を編集できます。「要確認」は写真からの判読に自信が低いパーツです。</p>
+        <div class="ig-list" id="correctionList"></div>
+        <div class="section-label">エクスポート</div>
+        <button class="btn ghost sm" id="exportOverridesBtn">訂正をエクスポート</button>
+        <button class="btn danger sm" id="clearOverridesBtn">訂正をクリア</button>
+      </div></div>
+    </div>
+
+  </section>
+
+</div>
+
+<nav class="tabbar">
+  <button class="tabbar__btn active" data-tab="map"><span class="tabbar__icon">🗺️</span>地図</button>
+  <button class="tabbar__btn" data-tab="quiz"><span class="tabbar__icon">📝</span>クイズ</button>
+  <button class="tabbar__btn" data-tab="stats"><span class="tabbar__icon">📊</span>せいせき</button>
+  <button class="tabbar__btn" data-tab="settings"><span class="tabbar__icon">⚙️</span>設定</button>
+</nav>
+
+<div id="sheetRoot"></div>
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   chiri2 - 地名ドリル世界
+   ========================================================================= */
+
+/* ---------- 埋め込みデータ（tools/make_map.py が生成） ---------- */
+const SVG_SEA = `__SVG_SEA__`;
+__PARTS_SEA__
+
+const MAPS = [
+  { id:"sea", title:"東南アジア", svg:SVG_SEA, parts:MAP_PARTS_SEA }
+];
+
+/* ---------- rekishi型エンジンの器（今回は空。ロジックのみ搭載） ---------- */
+const TERMS = [];
+const POOL = [];
+function generateFromTerms(){ return []; }
+const ALL_QUIZ = generateFromTerms().concat(POOL);
+
+/* ---------- 保存 ---------- */
+const STORE_KEY = "chiri2_v1";
+const OVR_KEY = "chiri2_v1_overrides";
+const mem = {};
+const store = {
+  load(key, fallback){
+    try{ const v = JSON.parse(localStorage.getItem(key)); return v==null?fallback:v; }
+    catch(e){ return mem[key]!==undefined?mem[key]:fallback; }
+  },
+  save(key, data){
+    try{ localStorage.setItem(key, JSON.stringify(data)); }
+    catch(e){ mem[key]=data; }
+  }
+};
+function getData(){
+  const d = store.load(STORE_KEY, {});
+  d.stats = d.stats || {};   // { "sea:7:A": {seen,correct} }
+  d.wrong = d.wrong || [];   // ["sea:7:A", ...]
+  d.resume = d.resume || null;
+  return d;
+}
+function saveData(d){ store.save(STORE_KEY, d); }
+function getOverrides(){ return store.load(OVR_KEY, {}); }
+function saveOverrides(o){ store.save(OVR_KEY, o); }
+
+/* ---------- ユーティリティ ---------- */
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function pickDistinct(pool, n, excludeNames){
+  const out=[]; const used=new Set(excludeNames||[]);
+  for(const x of shuffle(pool)){ if(out.length>=n) break; if(!used.has(x.name)){ out.push(x); used.add(x.name); } }
+  return out;
+}
+function normalize(s){
+  s = (s||"").trim();
+  s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  s = s.replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+  s = s.replace(/[\s　]/g, "");
+  return s.toLowerCase();
+}
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove("show"), 1600);
+}
+
+const KIND_FAMILY = {
+  "海":"海系","海溝":"海系","海峡":"海系",
+  "島":"陸地形","半島":"陸地形","地峡":"陸地形","台地":"陸地形","諸島":"陸地形",
+  "川":"川","都市":"都市","緯度":"線","経度":"線"
+};
+
+/* ---------- 地域データ（訂正マージ＋SVG突合の安全装置） ---------- */
+function regionById(id){ return MAPS.find(m=>m.id===id); }
+function effectiveParts(regionId){
+  const region = regionById(regionId);
+  const ov = getOverrides()[regionId] || {};
+  return region.parts.map(p=>{
+    const o = ov[p.id];
+    return o ? Object.assign({}, p, { name:o.name||p.name, yomi:o.yomi!=null?o.yomi:p.yomi, alt:o.alt||p.alt }) : Object.assign({}, p);
+  });
+}
+function svgPartIds(svgString){
+  const div = document.createElement("div"); div.innerHTML = svgString;
+  const ids = new Set();
+  div.querySelectorAll("[data-part]").forEach(el=>ids.add(el.getAttribute("data-part")));
+  return ids;
+}
+function validParts(regionId){
+  const region = regionById(regionId);
+  const svgIds = svgPartIds(region.svg);
+  const listIds = new Set(region.parts.map(p=>p.id));
+  const onlyInList = [...listIds].filter(id=>!svgIds.has(id));
+  const onlyInSvg = [...svgIds].filter(id=>!listIds.has(id));
+  if(onlyInList.length) console.warn("[chiri2] SVGに存在しないid（出題対象外）:", onlyInList);
+  if(onlyInSvg.length) console.warn("[chiri2] partsリストに存在しないSVGのid:", onlyInSvg);
+  return effectiveParts(regionId).filter(p=>svgIds.has(p.id));
+}
+
+/* ---------- パン・ズーム ---------- */
+function PanZoom(viewportEl){
+  this.vp = viewportEl; this.svg = null; this.scale=1; this.tx=0; this.ty=0;
+  this.minScale=1; this.maxScale=5;
+  this.pointers = new Map();
+  this.dragging=false; this.startDist=0; this.startScale=1; this.startMid=null; this.moved=false;
+  this.onTap=null;
+  this._bind();
+}
+PanZoom.prototype._bind = function(){
+  const vp = this.vp;
+  vp.addEventListener("pointerdown", e=>{
+    vp.setPointerCapture(e.pointerId);
+    this.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
+    this.moved=false;
+    if(this.pointers.size===1){ const p=[...this.pointers.values()][0]; this.startPt={x:p.x,y:p.y}; this.startTx=this.tx; this.startTy=this.ty; }
+    if(this.pointers.size===2){ this._pinchStart(); }
+  });
+  vp.addEventListener("pointermove", e=>{
+    if(!this.pointers.has(e.pointerId)) return;
+    this.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
+    if(this.pointers.size===1){
+      const p=[...this.pointers.values()][0];
+      const dx=p.x-this.startPt.x, dy=p.y-this.startPt.y;
+      if(Math.hypot(dx,dy)>4){ this.moved=true; this.tx=this.startTx+dx; this.ty=this.startTy+dy; this._clamp(); this._apply(); }
+    } else if(this.pointers.size===2){
+      this.moved=true; this._pinchMove();
+    }
+  });
+  const end = e=>{
+    const wasSingle = this.pointers.size===1;
+    const wasTap = wasSingle && !this.moved;
+    this.pointers.delete(e.pointerId);
+    if(this.pointers.size<2) this.startDist=0;
+    if(wasTap && this.onTap) this.onTap(e.clientX, e.clientY);
+  };
+  vp.addEventListener("pointerup", end);
+  vp.addEventListener("pointercancel", e=>{ this.pointers.delete(e.pointerId); if(this.pointers.size<2) this.startDist=0; });
+};
+PanZoom.prototype._pinchStart = function(){
+  const pts=[...this.pointers.values()];
+  this.startDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+  this.startScale = this.scale;
+  const rect=this.vp.getBoundingClientRect();
+  this.startMid = {x:(pts[0].x+pts[1].x)/2-rect.left, y:(pts[0].y+pts[1].y)/2-rect.top};
+  this.startTx=this.tx; this.startTy=this.ty;
+};
+PanZoom.prototype._pinchMove = function(){
+  const pts=[...this.pointers.values()];
+  const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+  if(!this.startDist) { this._pinchStart(); return; }
+  let ns = this.startScale * (dist/this.startDist);
+  ns = Math.max(this.minScale, Math.min(this.maxScale, ns));
+  const k = ns/this.startScale;
+  this.tx = this.startMid.x - (this.startMid.x-this.startTx)*k;
+  this.ty = this.startMid.y - (this.startMid.y-this.startTy)*k;
+  this.scale = ns;
+  this._clamp(); this._apply();
+};
+PanZoom.prototype._clamp = function(){
+  const rect = this.vp.getBoundingClientRect();
+  const w = rect.width*this.scale, h = rect.height*this.scale;
+  const minTx = Math.min(0, rect.width-w), minTy = Math.min(0, rect.height-h);
+  this.tx = Math.max(minTx, Math.min(0, this.tx));
+  this.ty = Math.max(minTy, Math.min(0, this.ty));
+};
+PanZoom.prototype._apply = function(){
+  if(this.svg) this.svg.style.transform = `translate(${this.tx}px,${this.ty}px) scale(${this.scale})`;
+};
+PanZoom.prototype.setSvg = function(svgEl){ this.svg = svgEl; this.reset(); };
+PanZoom.prototype.reset = function(){ this.scale=1; this.tx=0; this.ty=0; this._apply(); };
+PanZoom.prototype.zoomBy = function(f){
+  const rect=this.vp.getBoundingClientRect();
+  const cx=rect.width/2, cy=rect.height/2;
+  const ns = Math.max(this.minScale, Math.min(this.maxScale, this.scale*f));
+  const k = ns/this.scale;
+  this.tx = cx-(cx-this.tx)*k; this.ty = cy-(cy-this.ty)*k;
+  this.scale = ns; this._clamp(); this._apply();
+};
+PanZoom.prototype.focusOnIds = function(ids){
+  if(!this.svg) return;
+  let box=null;
+  ids.forEach(id=>{
+    this.svg.querySelectorAll('[data-part="'+CSS.escape(id)+'"]').forEach(el=>{
+      try{
+        const b = el.getBBox();
+        if(!box) box = {x1:b.x,y1:b.y,x2:b.x+b.width,y2:b.y+b.height};
+        else { box.x1=Math.min(box.x1,b.x); box.y1=Math.min(box.y1,b.y); box.x2=Math.max(box.x2,b.x+b.width); box.y2=Math.max(box.y2,b.y+b.height); }
+      }catch(e){}
+    });
+  });
+  if(!box) return;
+  const vb = this.svg.viewBox.baseVal;
+  const rect = this.vp.getBoundingClientRect();
+  const pxPerUnit = rect.width/vb.width;
+  const cx=(box.x1+box.x2)/2*pxPerUnit, cy=(box.y1+box.y2)/2*pxPerUnit;
+  const ns = Math.min(this.maxScale, Math.max(2.2, this.minScale));
+  this.scale = ns;
+  this.tx = rect.width/2 - cx*ns; this.ty = rect.height/2 - cy*ns;
+  this._clamp(); this._apply();
+};
+
+let mapPanZoom = null;
+
+/* ---------- 画面切り替え ---------- */
+const state = { tab:"map", region:null, quiz:null };
+
+function showTab(name){
+  state.tab = name;
+  ["map","quiz","stats","settings"].forEach(t=>{
+    document.getElementById("tab-"+t).classList.toggle("hidden", t!==name);
+  });
+  document.querySelectorAll(".tabbar__btn").forEach(b=>b.classList.toggle("active", b.dataset.tab===name));
+  if(name==="stats") renderStats();
+  if(name==="settings") renderSettingsHome();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".tabbar__btn").forEach(b=>b.addEventListener("click", ()=>showTab(b.dataset.tab)));
+
+function showMapSub(name){
+  ["home","setup","quiz","result"].forEach(s=>{
+    document.getElementById("screen-map-"+s).classList.toggle("hidden", s!==name);
+  });
+}
+function showSettingsScreen(name){
+  document.getElementById("screen-settings-home").classList.toggle("hidden", name!=="home");
+  document.getElementById("screen-correction-list").classList.toggle("hidden", name!=="correction");
+}
+
+/* ---------- Large Title 収縮 ---------- */
+function initLargeTitleScroll(scrollElId, smallTitleParentSelector){
+  const el = document.getElementById(scrollElId);
+  if(!el) return;
+  const small = el.previousElementSibling; // navbar-small
+  el.addEventListener("scroll", ()=>{
+    if(el.scrollTop > 28) small.classList.add("show"); else small.classList.remove("show");
+  });
+}
+initLargeTitleScroll("scrollMapHome");
+initLargeTitleScroll("scrollQuizHome");
+initLargeTitleScroll("scrollStats");
+initLargeTitleScroll("scrollSettings");
+
+/* ---------- 地図：地域リスト ---------- */
+function renderRegionList(){
+  const box = document.getElementById("regionList"); box.innerHTML="";
+  MAPS.forEach(region=>{
+    const d = getData();
+    const parts = validParts(region.id);
+    let seen=0, correct=0;
+    parts.forEach(p=>{
+      ["A","B"].forEach(dir=>{
+        const s = d.stats[region.id+":"+p.id+":"+dir];
+        if(s){ seen+=s.seen; correct+=s.correct; }
+      });
+    });
+    const acc = seen ? Math.round(correct/seen*100)+"%" : "—";
+    const btn = document.createElement("button");
+    btn.className = "ig-row tap";
+    btn.innerHTML = `<div class="ig-row__main"><div class="ig-row__name">${escapeHtml(region.title)}</div>
+      <div class="ig-row__sub">${parts.length}パーツ・正答率 ${acc}</div></div><span class="ig-row__chev">›</span>`;
+    btn.onclick = ()=>openMapSetup(region.id);
+    box.appendChild(btn);
+  });
+}
+
+function openMapSetup(regionId){
+  state.region = regionId;
+  const region = regionById(regionId);
+  document.getElementById("setupTitle").textContent = region.title;
+  const d = getData();
+  const parts = validParts(regionId);
+  let seen=0, correct=0, wrongSet=new Set();
+  parts.forEach(p=>{
+    ["A","B"].forEach(dir=>{
+      const key = regionId+":"+p.id+":"+dir;
+      const s = d.stats[key];
+      if(s){ seen+=s.seen; correct+=s.correct; }
+      if(d.wrong.includes(key)) wrongSet.add(p.id);
+    });
+  });
+  document.getElementById("setupSeen").textContent = seen;
+  document.getElementById("setupAcc").textContent = seen ? Math.round(correct/seen*100)+"%" : "—";
+  document.getElementById("setupWrong").textContent = wrongSet.size;
+
+  const resumeBtn = document.getElementById("setupResumeBtn");
+  if(d.resume && d.resume.region===regionId){
+    resumeBtn.classList.remove("hidden");
+    resumeBtn.textContent = `▶ 続きから再開（${d.resume.idx+1}/${d.resume.items.length}問目）`;
+  } else {
+    resumeBtn.classList.add("hidden");
+  }
+  showMapSub("setup");
+}
+document.getElementById("setupBack").onclick = ()=>showMapSub("home");
+
+let setupOpts = { count:20, dir:"both", form:"mc" };
+document.getElementById("setupCountChips").addEventListener("click", e=>{
+  if(e.target.dataset.count===undefined) return;
+  setupOpts.count = +e.target.dataset.count;
+  [...document.querySelectorAll("#setupCountChips .chip")].forEach(c=>c.classList.toggle("on", c===e.target));
+});
+document.getElementById("setupDirChips").addEventListener("click", e=>{
+  if(!e.target.dataset.dir) return;
+  setupOpts.dir = e.target.dataset.dir;
+  [...document.querySelectorAll("#setupDirChips .chip")].forEach(c=>c.classList.toggle("on", c===e.target));
+});
+document.getElementById("setupFormChips").addEventListener("click", e=>{
+  if(!e.target.dataset.form) return;
+  setupOpts.form = e.target.dataset.form;
+  [...document.querySelectorAll("#setupFormChips .chip")].forEach(c=>c.classList.toggle("on", c===e.target));
+});
+
+/* ---------- 出題セット作成 ---------- */
+function buildQuizItems(regionId, opts, reviewOnly){
+  const parts = validParts(regionId);
+  let items = [];
+  parts.forEach(p=>{
+    const isGrid = (p.kind==="緯度"||p.kind==="経度");
+    if(isGrid){
+      items.push({ region:regionId, part:p, dir:"B" });
+    } else {
+      if(opts.dir==="both"||opts.dir==="A") items.push({ region:regionId, part:p, dir:"A" });
+      if(opts.dir==="both"||opts.dir==="B") items.push({ region:regionId, part:p, dir:"B" });
+    }
+  });
+  if(reviewOnly){
+    const d = getData();
+    const wrongSet = new Set(d.wrong);
+    items = items.filter(it=>wrongSet.has(it.region+":"+it.part.id+":"+it.dir));
+  }
+  items = shuffle(items);
+  if(opts.count>0) items = items.slice(0, opts.count);
+  return items;
+}
+
+function startMapQuiz(reviewOnly){
+  const items = buildQuizItems(state.region, setupOpts, reviewOnly);
+  if(items.length===0){
+    toast(reviewOnly ? "にがてな問題はまだありません" : "出題できる問題がありません");
+    return;
+  }
+  const d = getData(); d.resume=null; saveData(d);
+  state.quiz = { items, idx:0, score:0, wrong:[], formMode:setupOpts.form, region:state.region, answered:false };
+  document.getElementById("mapSvgHost").innerHTML = SVG_SEA;
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  if(!mapPanZoom) mapPanZoom = new PanZoom(document.getElementById("mapViewport"));
+  mapPanZoom.setSvg(svgEl);
+  bindMapTapHandler(svgEl);
+  showMapSub("quiz");
+  renderMapQuestion();
+}
+document.getElementById("setupStartBtn").onclick = ()=>startMapQuiz(false);
+document.getElementById("setupReviewBtn").onclick = ()=>startMapQuiz(true);
+
+document.getElementById("zoomIn").onclick = ()=>mapPanZoom && mapPanZoom.zoomBy(1.4);
+document.getElementById("zoomOut").onclick = ()=>mapPanZoom && mapPanZoom.zoomBy(1/1.4);
+document.getElementById("zoomReset").onclick = ()=>mapPanZoom && mapPanZoom.reset();
+
+function clearHighlights(svgEl){
+  svgEl.querySelectorAll(".part-target,.part-correct,.part-wrong,.part-blink").forEach(el=>{
+    el.classList.remove("part-target","part-correct","part-wrong","part-blink");
+  });
+}
+function highlightIds(svgEl, ids, cls, blink){
+  ids.forEach(id=>{
+    svgEl.querySelectorAll('[data-part="'+CSS.escape(id)+'"]').forEach(el=>{
+      el.classList.add(cls); if(blink) el.classList.add("part-blink");
+    });
+  });
+}
+
+function bindMapTapHandler(svgEl){
+  // PanZoom uses setPointerCapture on the viewport, which retargets the
+  // native "click" event away from descendant SVG elements — so tap
+  // detection is done via PanZoom's own onTap callback instead of a
+  // click listener on the svg.
+  mapPanZoom.onTap = (clientX, clientY)=>{
+    if(!state.quiz || state.quiz.answered) return;
+    const q = state.quiz.items[state.quiz.idx];
+    if(q.dir!=="A") return;
+    const el = document.elementFromPoint(clientX, clientY);
+    if(!el) return;
+    const hit = el.closest("[data-part]");
+    if(!hit) return;
+    gradeDirectionA(hit.getAttribute("data-part"));
+  };
+}
+
+function currentEffectivePart(id){
+  return validParts(state.quiz.region).find(p=>p.id===id);
+}
+
+function renderMapQuestion(){
+  const q = state.quiz.items[state.quiz.idx];
+  state.quiz.answered = false;
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  clearHighlights(svgEl);
+  mapPanZoom.reset();
+
+  document.getElementById("quizPos").textContent = (state.quiz.idx+1)+" / "+state.quiz.items.length;
+  document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;
+  document.getElementById("quizProg").style.width = (state.quiz.idx/state.quiz.items.length*100)+"%";
+  document.getElementById("quizFeedback").innerHTML = "";
+  document.getElementById("quizNextBtn").classList.add("hidden");
+
+  const part = q.part;
+  const hint = part.res ? `（${part.res}）` : "";
+  const body = document.getElementById("quizBody"); body.innerHTML = "";
+
+  if(q.dir==="A"){
+    document.getElementById("quizTag").textContent = "位置あて";
+    document.getElementById("quizText").textContent = `${part.name}はどこ？${hint}`;
+  } else {
+    document.getElementById("quizTag").textContent = "名前あて";
+    let qtext;
+    if(part.kind==="緯度") qtext = "この線は北緯何度？";
+    else if(part.kind==="経度") qtext = "この線は東経何度？";
+    else qtext = `この${part.kind}の名前は？${hint}`;
+    document.getElementById("quizText").textContent = qtext;
+    highlightIds(svgEl, [part.id], "part-target", false);
+    mapPanZoom.focusOnIds([part.id]);
+
+    const isGrid = (part.kind==="緯度"||part.kind==="経度");
+    const useDesc = isGrid || state.quiz.formMode==="desc";
+    if(useDesc) renderDescInput(part, body);
+    else renderMcChoices(part, body);
+  }
+}
+
+function renderMcChoices(part, body){
+  const all = validParts(state.quiz.region);
+  let pool = all.filter(p=>p.id!==part.id && p.kind===part.kind);
+  if(pool.length<3){
+    pool = pool.concat(all.filter(p=>p.id!==part.id && p.kind!==part.kind && KIND_FAMILY[p.kind]===KIND_FAMILY[part.kind] && pool.indexOf(p)<0));
+  }
+  if(pool.length<3){
+    pool = pool.concat(all.filter(p=>p.id!==part.id && pool.indexOf(p)<0));
+  }
+  const excludeNames = [part.name].concat(part.alt||[]);
+  const dummies = pickDistinct(pool, 3, excludeNames);
+  const choices = shuffle([part].concat(dummies));
+  choices.forEach(c=>{
+    const b = document.createElement("button");
+    b.className = "opt"; b.textContent = c.name;
+    b.onclick = ()=>{ if(state.quiz.answered) return; gradeDirectionBChoice(part, c.name===part.name, b); };
+    body.appendChild(b);
+  });
+}
+
+function renderDescInput(part, body){
+  const answers = [part.name, part.yomi].concat(part.alt||[]).filter(Boolean).map(normalize);
+  const wrap = document.createElement("div"); wrap.className="ansrow";
+  const inp = document.createElement("input");
+  inp.type="text"; inp.className="ansinput"; inp.placeholder="答えを入力";
+  inp.setAttribute("autocomplete","off"); inp.setAttribute("autocapitalize","off"); inp.setAttribute("autocorrect","off");
+  wrap.appendChild(inp);
+  const row = document.createElement("div"); row.className="selfrow";
+  const check = document.createElement("button"); check.className="btn primary sm"; check.textContent="答え合わせ";
+  row.appendChild(check); wrap.appendChild(row);
+  body.appendChild(wrap);
+  setTimeout(()=>inp.focus(), 30);
+
+  check.onclick = ()=>{
+    if(state.quiz.answered) return;
+    const typed = inp.value;
+    const auto = typed.trim()!=="" && answers.includes(normalize(typed));
+    inp.disabled = true;
+    if(auto){
+      inp.classList.add("correct");
+      finishQuestion(part, true);
+    } else {
+      inp.classList.add("wrong");
+      const fb = document.getElementById("quizFeedback");
+      fb.innerHTML = `<div class="fb ng"><b>正解：${escapeHtml(part.name)}</b>${part.yomi?`（${escapeHtml(part.yomi)}）`:""}</div>`;
+      const sr = document.createElement("div"); sr.className="selfrow"; sr.style.marginTop="10px";
+      const maru = document.createElement("button"); maru.className="btn maru sm"; maru.textContent="○ 合っていた";
+      const batsu = document.createElement("button"); batsu.className="btn batsu sm"; batsu.textContent="× まちがえた";
+      maru.onclick=()=>{ if(state.quiz.answered) return; finishQuestion(part, true); };
+      batsu.onclick=()=>{ if(state.quiz.answered) return; finishQuestion(part, false); };
+      sr.appendChild(maru); sr.appendChild(batsu);
+      body_append_self(sr);
+    }
+  };
+  inp.addEventListener("keydown", ev=>{ if(ev.key==="Enter") check.click(); });
+}
+function body_append_self(el){ document.getElementById("quizBody").appendChild(el); }
+
+function gradeDirectionA(tappedId){
+  const q = state.quiz.items[state.quiz.idx];
+  const part = q.part;
+  state.quiz.answered = true;
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  const ok = tappedId===part.id;
+  if(!ok) highlightIds(svgEl, [tappedId], "part-wrong", false);
+  highlightIds(svgEl, [part.id], "part-correct", true);
+  mapPanZoom.focusOnIds([part.id, tappedId]);
+  const fb = document.getElementById("quizFeedback");
+  fb.innerHTML = ok
+    ? `<div class="fb ok"><b>○ 正解！</b></div>`
+    : `<div class="fb ng"><b>× 正解は「${escapeHtml(part.name)}」</b></div>`;
+  recordResult(state.quiz.region, part, "A", ok);
+  document.getElementById("quizNextBtn").classList.remove("hidden");
+  document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;
+}
+function gradeDirectionBChoice(part, ok, btnEl){
+  state.quiz.answered = true;
+  [...btnEl.parentNode.children].forEach(el=>{
+    el.classList.add("dim");
+    if(el.textContent===part.name){ el.classList.remove("dim"); el.classList.add("correct"); }
+  });
+  if(!ok) btnEl.classList.remove("dim"), btnEl.classList.add("wrong");
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  highlightIds(svgEl, [part.id], "part-correct", true);
+  const fb = document.getElementById("quizFeedback");
+  if(!ok) fb.innerHTML = `<div class="fb ng"><b>正解：${escapeHtml(part.name)}</b></div>`;
+  else fb.innerHTML = `<div class="fb ok"><b>○ 正解！</b></div>`;
+  recordResult(state.quiz.region, part, "B", ok);
+  document.getElementById("quizNextBtn").classList.remove("hidden");
+  document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;
+}
+function finishQuestion(part, ok){
+  const q = state.quiz.items[state.quiz.idx];
+  state.quiz.answered = true;
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  highlightIds(svgEl, [part.id], "part-correct", true);
+  recordResult(state.quiz.region, part, q.dir, ok);
+  document.getElementById("quizNextBtn").classList.remove("hidden");
+  document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;
+}
+function recordResult(regionId, part, dir, ok){
+  if(ok) state.quiz.score++; else state.quiz.wrong.push({part, dir});
+  const key = regionId+":"+part.id+":"+dir;
+  const d = getData();
+  const s = d.stats[key] || {seen:0, correct:0};
+  s.seen++; if(ok) s.correct++;
+  d.stats[key] = s;
+  const ws = new Set(d.wrong);
+  if(ok) ws.delete(key); else ws.add(key);
+  d.wrong = [...ws];
+  saveData(d);
+}
+
+document.getElementById("quizNextBtn").onclick = ()=>{
+  state.quiz.idx++;
+  if(state.quiz.idx>=state.quiz.items.length) showMapResult();
+  else renderMapQuestion();
+};
+document.getElementById("quizQuitBtn").onclick = ()=>{
+  const remaining = state.quiz && state.quiz.idx < state.quiz.items.length;
+  const msg = remaining ? "地図トップに戻りますか？\n途中までの内容は保存され、あとで「続きから再開」できます。" : "地図トップに戻りますか？";
+  if(!confirm(msg)) return;
+  if(remaining){
+    const d = getData();
+    d.resume = { region: state.quiz.region, items: state.quiz.items.map(it=>({partId:it.part.id, dir:it.dir})),
+      idx: state.quiz.idx, score: state.quiz.score, formMode: state.quiz.formMode };
+    saveData(d);
+  }
+  showMapSub("setup");
+  openMapSetup(state.region);
+};
+
+function showMapResult(){
+  const total = state.quiz.items.length;
+  document.getElementById("resultScore").textContent = state.quiz.score;
+  document.getElementById("resultTotal").textContent = " / "+total;
+  const pct = Math.round(state.quiz.score/total*100);
+  document.getElementById("resultMsg").textContent =
+    pct===100 ? "全問正解！みごとです。" : pct>=80 ? "よくできました！" : pct>=50 ? "その調子。あと少し。" : "くり返せば必ず力になります。";
+  const list = document.getElementById("resultWrongList"); list.innerHTML="";
+  const title = document.getElementById("resultWrongTitle");
+  if(state.quiz.wrong.length){
+    title.style.display="";
+    state.quiz.wrong.forEach(w=>{
+      const row = document.createElement("div"); row.className="ig-row";
+      row.innerHTML = `<span class="ig-row__name">${escapeHtml(w.part.name)}</span><span class="ig-row__sub">${w.dir==="A"?"位置あて":"名前あて"}</span>`;
+      list.appendChild(row);
+    });
+  } else title.style.display="none";
+  const d = getData(); d.resume=null; saveData(d);
+  showMapSub("result");
+}
+document.getElementById("resultAgainBtn").onclick = ()=>{
+  const items = state.quiz.wrong.map(w=>({region:state.quiz.region, part:w.part, dir:w.dir}));
+  if(items.length===0){ toast("まちがえた問題はありません"); return; }
+  state.quiz = { items:shuffle(items), idx:0, score:0, wrong:[], formMode:setupOpts.form, region:state.region };
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  bindMapTapHandler(svgEl);
+  showMapSub("quiz");
+  renderMapQuestion();
+};
+document.getElementById("resultHomeBtn").onclick = ()=>{ showMapSub("setup"); openMapSetup(state.region); };
+
+function resumeMapQuiz(){
+  const d = getData();
+  if(!d.resume) return;
+  const parts = validParts(d.resume.region);
+  const items = d.resume.items.map(r=>{
+    const p = parts.find(pp=>pp.id===r.partId);
+    return p ? {region:d.resume.region, part:p, dir:r.dir} : null;
+  }).filter(Boolean);
+  if(items.length===0){ d.resume=null; saveData(d); return; }
+  state.region = d.resume.region;
+  state.quiz = { items, idx:Math.min(d.resume.idx, items.length-1), score:d.resume.score, wrong:[], formMode:d.resume.formMode, region:d.resume.region };
+  document.getElementById("mapSvgHost").innerHTML = SVG_SEA;
+  const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  if(!mapPanZoom) mapPanZoom = new PanZoom(document.getElementById("mapViewport"));
+  mapPanZoom.setSvg(svgEl);
+  bindMapTapHandler(svgEl);
+  showMapSub("quiz");
+  renderMapQuestion();
+}
+document.getElementById("setupResumeBtn").onclick = resumeMapQuiz;
+
+/* ---------- せいせき ---------- */
+function renderStats(){
+  const d = getData();
+  let seen=0, correct=0;
+  Object.values(d.stats).forEach(s=>{ seen+=s.seen; correct+=s.correct; });
+  document.getElementById("statSeen").textContent = seen;
+  document.getElementById("statAcc").textContent = seen ? Math.round(correct/seen*100)+"%" : "—";
+
+  const partAgg = {}; // key: region:partId -> {name, seen, correct, wrong}
+  MAPS.forEach(region=>{
+    validParts(region.id).forEach(p=>{
+      const key = region.id+":"+p.id;
+      const agg = {name:p.name, seen:0, correct:0, wrong:false};
+      ["A","B"].forEach(dir=>{
+        const sk = region.id+":"+p.id+":"+dir;
+        const s = d.stats[sk];
+        if(s){ agg.seen+=s.seen; agg.correct+=s.correct; }
+        if(d.wrong.includes(sk)) agg.wrong=true;
+      });
+      if(agg.seen>0) partAgg[key]=agg;
+    });
+  });
+  document.getElementById("statWrong").textContent = Object.values(partAgg).filter(a=>a.wrong).length;
+
+  const list = document.getElementById("statPartList"); list.innerHTML="";
+  const rows = Object.values(partAgg).sort((a,b)=> (a.correct/a.seen) - (b.correct/b.seen));
+  if(rows.length===0){
+    list.innerHTML = `<div class="ig-row"><span class="ig-row__sub">まだ解答記録がありません</span></div>`;
+  } else {
+    rows.forEach(a=>{
+      const pct = Math.round(a.correct/a.seen*100);
+      const row = document.createElement("div"); row.className="ig-row";
+      row.innerHTML = `<div class="ig-row__main"><div class="ig-row__name">${escapeHtml(a.name)}${a.wrong?'<span class="badge badge--wrong">にがて</span>':''}</div>
+        <div class="ig-row__sub">${a.seen}回・正答率${pct}%</div></div>`;
+      list.appendChild(row);
+    });
+  }
+}
+document.getElementById("resetRecordsBtn").onclick = ()=>{
+  if(confirm("これまでの記録（のべ解答・正答率・にがて・中断データ）をすべて消します。よろしいですか？\n※問題データの訂正内容は消えません。")){
+    saveData({stats:{}, wrong:[], resume:null});
+    renderRegionList(); renderStats();
+    toast("記録をリセットしました");
+  }
+};
+
+/* ---------- 設定：訂正機能 ---------- */
+function updateOverrideCountLabel(){
+  const ov = getOverrides();
+  let n=0; Object.values(ov).forEach(regionOv=>{ n += Object.keys(regionOv).length; });
+  document.getElementById("overrideCountLabel").textContent = n>0 ? `訂正${n}件適用中` : "訂正0件適用中";
+}
+function renderSettingsHome(){
+  updateOverrideCountLabel();
+  showSettingsScreen("home");
+}
+document.getElementById("openCorrectionBtn").onclick = ()=>{ renderCorrectionList(); showSettingsScreen("correction"); };
+document.getElementById("correctionBack").onclick = ()=>{ renderSettingsHome(); };
+
+function renderCorrectionList(){
+  const regionId = "sea";
+  const region = regionById(regionId);
+  const ov = getOverrides()[regionId] || {};
+  const list = document.getElementById("correctionList"); list.innerHTML="";
+  region.parts.forEach(p=>{
+    const cur = ov[p.id] ? Object.assign({}, p, ov[p.id]) : p;
+    const row = document.createElement("button");
+    row.className = "ig-row tap";
+    row.innerHTML = `<div class="ig-row__main"><div class="ig-row__name">${p.id}. ${escapeHtml(cur.name)}
+        ${p.check?'<span class="badge badge--check">要確認</span>':''}${ov[p.id]?'<span class="badge badge--info">訂正済</span>':''}</div>
+      <div class="ig-row__sub">${escapeHtml(p.kind)}${cur.yomi?" ・ "+escapeHtml(cur.yomi):""}</div></div><span class="ig-row__chev">›</span>`;
+    row.onclick = ()=>openCorrectionEdit(regionId, p);
+    list.appendChild(row);
+  });
+}
+
+function openSheet(html, onMount){
+  const root = document.getElementById("sheetRoot");
+  root.innerHTML = `<div class="sheet-overlay" id="sheetOverlay"><div class="sheet">${html}</div></div>`;
+  const overlay = document.getElementById("sheetOverlay");
+  overlay.addEventListener("click", e=>{ if(e.target===overlay) closeSheet(); });
+  requestAnimationFrame(()=>overlay.classList.add("show"));
+  if(onMount) onMount(overlay);
+}
+function closeSheet(){
+  const overlay = document.getElementById("sheetOverlay");
+  if(!overlay) return;
+  overlay.classList.remove("show");
+  setTimeout(()=>{ document.getElementById("sheetRoot").innerHTML=""; }, 220);
+}
+
+function openCorrectionEdit(regionId, part){
+  const ov = getOverrides();
+  const cur = (ov[regionId] && ov[regionId][part.id]) ? ov[regionId][part.id] : {};
+  const name = cur.name!=null ? cur.name : part.name;
+  const yomi = cur.yomi!=null ? cur.yomi : part.yomi;
+  const alt = (cur.alt!=null ? cur.alt : part.alt||[]).join(", ");
+  const hasOverride = !!(ov[regionId] && ov[regionId][part.id]);
+  const html = `
+    <div class="sheet__handle"></div>
+    <h3>${part.id}. ${escapeHtml(part.name)}（${escapeHtml(part.kind)}）を訂正</h3>
+    <div class="form-group"><label>名前</label><input class="form-field" id="editName" value="${escapeHtml(name)}"></div>
+    <div class="form-group"><label>よみ</label><input class="form-field" id="editYomi" value="${escapeHtml(yomi||"")}"></div>
+    <div class="form-group"><label>別解（カンマ区切り）</label><input class="form-field" id="editAlt" value="${escapeHtml(alt)}"></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="editCancel">キャンセル</button>
+      <button class="btn primary" id="editSave">保存</button>
+    </div>
+    ${hasOverride ? '<button class="btn danger sm" id="editRevert" style="margin-top:10px">この行を元に戻す</button>' : ""}
+  `;
+  openSheet(html, overlay=>{
+    overlay.querySelector("#editCancel").onclick = closeSheet;
+    overlay.querySelector("#editSave").onclick = ()=>{
+      const n = overlay.querySelector("#editName").value.trim();
+      const y = overlay.querySelector("#editYomi").value.trim();
+      const a = overlay.querySelector("#editAlt").value.split(",").map(s=>s.trim()).filter(Boolean);
+      if(!n){ toast("名前は必須です"); return; }
+      const o = getOverrides();
+      o[regionId] = o[regionId] || {};
+      o[regionId][part.id] = { name:n, yomi:y, alt:a };
+      saveOverrides(o);
+      closeSheet(); renderCorrectionList(); updateOverrideCountLabel();
+      toast("訂正を保存しました");
+    };
+    const rv = overlay.querySelector("#editRevert");
+    if(rv) rv.onclick = ()=>{
+      const o = getOverrides();
+      if(o[regionId]) delete o[regionId][part.id];
+      saveOverrides(o);
+      closeSheet(); renderCorrectionList(); updateOverrideCountLabel();
+      toast("元に戻しました");
+    };
+  });
+}
+
+document.getElementById("exportOverridesBtn").onclick = ()=>{
+  const ov = getOverrides();
+  const json = JSON.stringify(ov, null, 1);
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `<div class="modal-overlay" id="exportOverlay"><div class="modal">
+    <h3>訂正をエクスポート</h3>
+    <textarea id="exportText" readonly>${escapeHtml(json)}</textarea>
+    <div class="modal-actions">
+      <button class="btn ghost sm" id="exportClose">閉じる</button>
+      <button class="btn primary sm" id="exportCopy">コピー</button>
+    </div>
+  </div></div>`;
+  const overlay = document.getElementById("exportOverlay");
+  overlay.addEventListener("click", e=>{ if(e.target===overlay) root.innerHTML=""; });
+  document.getElementById("exportClose").onclick = ()=>{ root.innerHTML=""; };
+  document.getElementById("exportCopy").onclick = ()=>{
+    const ta = document.getElementById("exportText");
+    ta.select(); ta.setSelectionRange(0, 999999);
+    let ok=false;
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(json); ok=true; } }catch(e){}
+    if(!ok){ try{ ok = document.execCommand("copy"); }catch(e){} }
+    toast(ok ? "コピーしました" : "コピーできませんでした。手動で選択してコピーしてください");
+  };
+};
+document.getElementById("clearOverridesBtn").onclick = ()=>{
+  if(confirm("この地域の訂正内容をすべて消します。よろしいですか？")){
+    const o = getOverrides(); delete o["sea"]; saveOverrides(o);
+    renderCorrectionList(); updateOverrideCountLabel();
+    toast("訂正をクリアしました");
+  }
+};
+
+/* ---------- 初期化 ---------- */
+renderRegionList();
+showTab("map");
+showMapSub("home");
+showSettingsScreen("home");
+</script>
+</body>
+</html>

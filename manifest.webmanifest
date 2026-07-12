@@ -1,0 +1,9 @@
+{
+  "name": "地名ドリル世界",
+  "short_name": "chiri2",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007AFF",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}
