@@ -92,10 +92,29 @@ button,input,textarea{font-family:inherit}
 /* ---- map viewport ---- */
 .map-viewport{position:relative;overflow:hidden;border-radius:14px;background:#eaf2fb;box-shadow:0 0 0 .5px var(--sep);touch-action:none}
 .map-viewport svg{display:block;width:100%;height:auto;transform-origin:0 0;will-change:transform}
-.map-hint{font-size:12px;color:var(--label2);text-align:center;margin-top:6px}
-.zoom-controls{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:2}
-.zoom-controls button{width:34px;height:34px;border-radius:9px;border:none;background:rgba(255,255,255,.92);
-  box-shadow:0 0 0 .5px var(--sep);font-size:18px;font-weight:700;color:var(--label)}
+
+/* 地図の下のコントロール行（凡例・ヒント・ズーム）。マーカーとの重なりを避けるため
+   地図の内側ではなく外側（すぐ下）に配置する。 */
+.map-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.map-hint{font-size:11.5px;color:var(--label2);text-align:center;flex:1}
+.zoom-controls{display:flex;gap:5px}
+.zoom-controls button{width:30px;height:30px;border-radius:8px;border:none;background:var(--bg);
+  box-shadow:0 0 0 .5px var(--sep);font-size:16px;font-weight:700;color:var(--label)}
+
+/* 種別チップ（ハイライト中のマーカー横に表示） */
+.kind-chip{position:absolute;transform:translateY(-50%);background:rgba(28,28,30,.85);color:#fff;
+  font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;pointer-events:none;white-space:nowrap;
+  z-index:3;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+
+/* 凡例（折りたたみ式） */
+.legend-toggle{border:none;border-radius:8px;background:var(--bg);box-shadow:0 0 0 .5px var(--sep);
+  font-size:11px;font-weight:600;padding:7px 10px;color:var(--label)}
+.legend-panel{position:absolute;left:0;bottom:38px;z-index:5;background:rgba(255,255,255,.98);
+  border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.18);padding:9px 11px;font-size:11.5px;
+  display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.legend-row{display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--label)}
+.legend-swatch{display:inline-flex;width:12px;height:12px;flex:0 0 12px}
+.legend-swatch svg{width:12px;height:12px;overflow:visible}
 
 /* part highlight states (targets svg internals) */
 .part-target .dot{fill:#ff9500 !important}
@@ -231,14 +250,31 @@ button,input,textarea{font-family:inherit}
           <span class="qtag" id="quizTag">位置あて</span>
           <div class="qtext" id="quizText"></div>
           <div class="map-viewport" id="mapViewport" style="margin-top:12px">
+            <div id="mapSvgHost"></div>
+            <div class="kind-chip hidden" id="kindChip"></div>
+          </div>
+          <div class="map-controls">
+            <div style="position:relative">
+              <button class="legend-toggle" id="legendToggle">凡例</button>
+              <div class="legend-panel hidden" id="legendPanel">
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="#1c1c1e"/></svg></span>都市</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="3" fill="#2f6690"/></svg></span>川</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="#fff" stroke="#5aa0c6" stroke-width="2"/></svg></span>海・湾</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><rect x="2.7" y="2.7" width="6.6" height="6.6" fill="#1a5276" transform="rotate(45 6 6)"/></svg></span>海峡・運河</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><polygon points="6,1.5 10.3,9 1.7,9" fill="#8a5a2f"/></svg></span>山・山脈</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="#7ec8e3"/></svg></span>湖</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="#3f9142"/></svg></span>島</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><rect x="3.4" y="3.4" width="5.2" height="5.2" fill="#8e8e93"/></svg></span>緯線・経線</div>
+                <div class="legend-row"><span class="legend-swatch"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="#c9a878"/></svg></span>その他</div>
+              </div>
+            </div>
+            <p class="map-hint">ピンチでズーム／指でパンできます</p>
             <div class="zoom-controls">
               <button id="zoomIn">＋</button>
               <button id="zoomOut">－</button>
               <button id="zoomReset">⟲</button>
             </div>
-            <div id="mapSvgHost"></div>
           </div>
-          <p class="map-hint">ピンチでズーム／指でパンできます</p>
           <div id="quizBody"></div>
           <div id="quizFeedback"></div>
         </div>
@@ -469,6 +505,7 @@ function PanZoom(viewportEl){
 PanZoom.prototype._bind = function(){
   const vp = this.vp;
   vp.addEventListener("pointerdown", e=>{
+    if(e.target.closest("button")) return; // ズーム/凡例ボタン等は通常のclickに任せる（setPointerCaptureで奪わない）
     if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
     vp.setPointerCapture(e.pointerId);
     this.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
@@ -542,7 +579,7 @@ PanZoom.prototype.zoomBy = function(f){
   this.scale = ns; this._clamp(); this._apply();
 };
 /* bboxOf: {x1,y1,x2,y2}(svg viewBox単位) の中心を、指定scaleで画面中央に来るようアニメーション付きでパン・ズームする */
-PanZoom.prototype.animateToBBox = function(box, targetScale){
+PanZoom.prototype.animateToBBox = function(box, targetScale, onDone){
   if(!this.svg || !box) return;
   const vb = this.svg.viewBox.baseVal;
   const rect = this.vp.getBoundingClientRect();
@@ -555,9 +592,9 @@ PanZoom.prototype.animateToBBox = function(box, targetScale){
   const minTx = Math.min(0, rect.width-w), minTy = Math.min(0, rect.height-h);
   targetTx = Math.max(minTx, Math.min(0, targetTx));
   targetTy = Math.max(minTy, Math.min(0, targetTy));
-  this._animateValues(ns, targetTx, targetTy);
+  this._animateValues(ns, targetTx, targetTy, onDone);
 };
-PanZoom.prototype._animateValues = function(targetScale, targetTx, targetTy){
+PanZoom.prototype._animateValues = function(targetScale, targetTx, targetTy, onDone){
   if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
   const startScale=this.scale, startTx=this.tx, startTy=this.ty;
   const dur=300, t0=performance.now();
@@ -570,7 +607,7 @@ PanZoom.prototype._animateValues = function(targetScale, targetTx, targetTy){
     this.ty = startTy + (targetTy-startTy)*e;
     this._apply();
     if(t<1){ this._animFrame = requestAnimationFrame(step); }
-    else{ this._animFrame=null; this.scale=targetScale; this.tx=targetTx; this.ty=targetTy; this._apply(); }
+    else{ this._animFrame=null; this.scale=targetScale; this.tx=targetTx; this.ty=targetTy; this._apply(); if(onDone) onDone(); }
   };
   this._animFrame = requestAnimationFrame(step);
 };
@@ -779,8 +816,31 @@ function centerOnPart(part){
     const px = parseFloat(m[1]), py = parseFloat(m[2]);
     box = {x1:px, y1:py, x2:px, y2:py};
   }
-  mapPanZoom.animateToBBox(box, scale);
+  mapPanZoom.animateToBBox(box, scale, ()=>showKindChip(part));
 }
+
+/* 種別チップ：ハイライト中のマーカーの実画面位置の横に「川」等のラベルを表示する */
+function showKindChip(part){
+  const svgEl = mapPanZoom && mapPanZoom.svg;
+  const vp = document.getElementById("mapViewport");
+  const chip = document.getElementById("kindChip");
+  if(!svgEl || !vp || !chip) return;
+  const markerEl = svgEl.querySelector('.marker[data-part="'+CSS.escape(part.id)+'"]');
+  if(!markerEl){ chip.classList.add("hidden"); return; }
+  const r = markerEl.getBoundingClientRect();
+  const vpRect = vp.getBoundingClientRect();
+  chip.textContent = part.kind;
+  chip.style.left = (r.x + r.width/2 - vpRect.x + 12) + "px";
+  chip.style.top = (r.y + r.height/2 - vpRect.y) + "px";
+  chip.classList.remove("hidden");
+}
+function hideKindChip(){
+  const chip = document.getElementById("kindChip");
+  if(chip) chip.classList.add("hidden");
+}
+document.getElementById("legendToggle").onclick = ()=>{
+  document.getElementById("legendPanel").classList.toggle("hidden");
+};
 
 function bindMapTapHandler(svgEl){
   // PanZoom uses setPointerCapture on the viewport, which retargets the
@@ -809,6 +869,7 @@ function renderMapQuestion(){
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   clearHighlights(svgEl);
   mapPanZoom.reset();
+  hideKindChip();
 
   document.getElementById("quizPos").textContent = (state.quiz.idx+1)+" / "+state.quiz.items.length;
   document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;

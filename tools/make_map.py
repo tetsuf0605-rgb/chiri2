@@ -339,7 +339,7 @@ REGIONS = {
     },
     "russia": {
         "title": "ロシアと周辺諸国",
-        "bbox": (18.0, 34.0, 190.0, 78.0),
+        "bbox": (18.0, 25.0, 165.0, 80.0),
         "width": 760,
         "simplify_px": 0.6,
         "parts": [
@@ -951,6 +951,36 @@ def simplify(pts, tol):
     return [p for p, f in zip(pts, keep) if f]
 
 # ============================================================
+# マーカー種別（kind → CSSクラス／形状）
+# ============================================================
+MARKER_CLASS = {
+    "都市": "m-city",
+    "島": "m-island", "諸島": "m-island",
+    "川": "m-river",
+    "海": "m-sea", "湾": "m-sea", "海流": "m-sea", "海溝": "m-sea",
+    "海峡": "m-strait", "運河": "m-strait",
+    "山": "m-mountain", "山脈": "m-mountain", "峠": "m-mountain",
+    "湖": "m-lake",
+    "緯度": "m-grid", "経度": "m-grid", "緯線": "m-grid", "経線": "m-grid",
+}
+
+
+def marker_shape(kind_cls):
+    """kind別クラスに応じたSVG図形（circle/rect/polygon）を返す。ヒット円は別途共通で描画する。"""
+    if kind_cls == "m-mountain":
+        return '<polygon class="dot" points="0,-5 4.3,3 -4.3,3"/>'
+    if kind_cls == "m-strait":
+        return '<rect class="dot" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="rotate(45)"/>'
+    if kind_cls == "m-grid":
+        return '<rect class="dot" x="-2.6" y="-2.6" width="5.2" height="5.2"/>'
+    if kind_cls == "m-sea":
+        return '<circle class="dot" r="5"/>'
+    if kind_cls == "m-river":
+        return '<circle class="dot" r="3"/>'
+    return '<circle class="dot" r="4"/>'
+
+
+# ============================================================
 # メイン
 # ============================================================
 
@@ -1091,10 +1121,11 @@ def build(region_key):
             report.append(f"[警告] bbox外のためマーカー省略: {part['id']} {part['name']} (lon={part['lon']}, lat={part['lat']})")
             continue
         mx, my = proj(part["lon"], part["lat"])
-        kind_cls = {"都市": "m-city", "島": "m-island", "諸島": "m-island"}.get(part["kind"], "m-zone")
+        kind_cls = MARKER_CLASS.get(part["kind"], "m-land")
         marker_svg.append(
-            f'<g class="marker {kind_cls}" data-part="{part["id"]}" transform="translate({mx:.1f},{my:.1f})">'
-            f'<circle class="hit" r="16"/><circle class="dot" r="4"/></g>'
+            f'<g class="marker {kind_cls}" data-part="{part["id"]}" data-kind="{part["kind"]}" '
+            f'transform="translate({mx:.1f},{my:.1f})">'
+            f'<circle class="hit" r="16"/>{marker_shape(kind_cls)}</g>'
         )
 
     style = (
@@ -1106,6 +1137,14 @@ def build(region_key):
         ".marker .hit{fill:#000;fill-opacity:0;pointer-events:all}"
         ".marker .dot{fill:#3a3a3c;stroke:#fff;stroke-width:1.2}"
         ".m-city .dot{fill:#1c1c1e}"
+        ".m-river .dot{fill:#2f6690}"
+        ".m-sea .dot{fill:#fff;stroke:#5aa0c6;stroke-width:2}"
+        ".m-strait .dot{fill:#1a5276;stroke:#fff;stroke-width:1}"
+        ".m-mountain .dot{fill:#8a5a2f;stroke:#fff;stroke-width:1}"
+        ".m-lake .dot{fill:#7ec8e3}"
+        ".m-island .dot{fill:#3f9142}"
+        ".m-grid .dot{fill:#8e8e93;stroke:#fff;stroke-width:1}"
+        ".m-land .dot{fill:#c9a878}"
         "</style>"
     )
     svg = (
