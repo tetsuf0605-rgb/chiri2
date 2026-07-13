@@ -146,6 +146,12 @@ button,input,textarea{font-family:inherit}
 #markers .marker{transition:opacity .3s}
 #markers.dimmed .marker:not(.is-active){opacity:.35}
 
+/* 方向A：出題パーツと異なるファミリーのマーカー/シェイプを減光しタップ無効化する */
+[data-part]{transition:opacity .3s}
+.family-dim{opacity:.25}
+.family-dim .hit,.family-dim .dot,.family-dim .pulse-ring{pointer-events:none !important}
+.land.family-dim,.river.family-dim,.grid-q.family-dim{pointer-events:none !important}
+
 /* 解答表示（正誤） */
 .part-correct .dot{fill:#34c759 !important}
 .part-correct.land,.part-correct.river{stroke:#34c759 !important;stroke-width:3 !important}
@@ -160,6 +166,7 @@ button,input,textarea{font-family:inherit}
 .prog>i{display:block;height:100%;background:var(--accent);transition:width .25s}
 .qtag{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--bg);color:var(--accent);margin-bottom:8px}
 .qtext{font-size:18px;font-weight:600;line-height:1.5;margin-bottom:4px}
+.qkind-hint{font-size:13px;color:var(--accent);font-weight:600;margin:0 0 8px}
 .opts{display:flex;flex-direction:column;gap:9px;margin-top:14px}
 .opt{display:block;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--sep);border-radius:11px;
   padding:13px 14px;font-size:16px;color:var(--label);min-height:48px}
@@ -276,6 +283,7 @@ button,input,textarea{font-family:inherit}
         <div class="card">
           <span class="qtag" id="quizTag">位置あて</span>
           <div class="qtext" id="quizText"></div>
+          <p class="qkind-hint hidden" id="quizKindHint"></p>
           <div class="map-viewport" id="mapViewport" style="margin-top:12px">
             <div id="mapSvgHost"></div>
             <div class="kind-chip hidden" id="kindChip"></div>
@@ -5533,10 +5541,24 @@ function saveOverrides(o){ store.save(OVR_KEY, o); }
 
 /* ---------- ユーティリティ ---------- */
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-function pickDistinct(pool, n, excludeNames){
-  const out=[]; const used=new Set(excludeNames||[]);
-  for(const x of shuffle(pool)){ if(out.length>=n) break; if(!used.has(x.name)){ out.push(x); used.add(x.name); } }
+/* 4択ダミー選択: 同名・別解(alt)一致・既出との重複を除外しつつ最大n件集める */
+function pickMcDummies(pool, n, excludeSet){
+  const used = new Set(excludeSet);
+  const out = [];
+  for(const p of shuffle(pool)){
+    if(out.length>=n) break;
+    if(used.has(p.name)) continue;
+    if((p.alt||[]).some(a=>used.has(a))) continue;
+    out.push(p);
+    used.add(p.name);
+    (p.alt||[]).forEach(a=>used.add(a));
+  }
   return out;
+}
+function buildExcludeSet(part, extraParts){
+  const s = new Set([part.name, ...(part.alt||[])]);
+  (extraParts||[]).forEach(p=>{ s.add(p.name); (p.alt||[]).forEach(a=>s.add(a)); });
+  return s;
 }
 function normalize(s){
   s = (s||"").trim();
@@ -5552,10 +5574,19 @@ function toast(msg){
   clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove("show"), 1600);
 }
 
+/* kind→ファミリー。方向Aのタップ制限・方向Bのダミー選択の両方で使う。
+   陸地地形に「海岸」を追加（ユーザー定義の一覧に無いが既存データに存在するため）。 */
 const KIND_FAMILY = {
-  "海":"海系","海溝":"海系","海峡":"海系",
-  "島":"陸地形","半島":"陸地形","地峡":"陸地形","台地":"陸地形","諸島":"陸地形",
-  "川":"川","都市":"都市","緯度":"線","経度":"線"
+  "海":"水域","湾":"水域","海峡":"水域","運河":"水域","海溝":"水域","海流":"水域",
+  "湖":"湖沼",
+  "川":"河川",
+  "山":"山岳","山脈":"山岳","峠":"山岳",
+  "島":"島嶼","諸島":"島嶼",
+  "半島":"陸地地形","地峡":"陸地地形","岬":"陸地地形","砂漠":"陸地地形","高原":"陸地地形",
+  "平原":"陸地地形","盆地":"陸地地形","台地":"陸地地形","高地":"陸地地形","地方":"陸地地形",
+  "地形":"陸地地形","国":"陸地地形","海岸":"陸地地形",
+  "都市":"都市","遺跡":"都市",
+  "緯度":"緯経","経度":"緯経","緯線":"緯経","経線":"緯経",
 };
 
 /* センタリング時のズーム倍率（kind別）。都市/海峡/峠/山/岬=2.5、島/湖/川=1.8、
@@ -5879,6 +5910,7 @@ function clearHighlights(svgEl){
     el.classList.remove("is-active","part-correct","part-wrong","part-blink");
   });
   setMarkersDimmed(svgEl, false);
+  clearFamilyRestriction(svgEl);
 }
 function setMarkersDimmed(svgEl, dimmed){
   const markers = svgEl.querySelector("#markers");
@@ -5888,6 +5920,24 @@ function clearActive(svgEl){
   // is-active の赤(fill/stroke !important)は part-correct/part-wrong より詳細度が高く
   // 上書きしてしまうため、解答表示の直前に必ず外す
   svgEl.querySelectorAll(".is-active").forEach(el=>el.classList.remove("is-active"));
+}
+
+/* 方向A：出題パーツと同一ファミリーのマーカー/シェイプだけをタップ可能にし、
+   他ファミリーは減光してタップ無効にする（.hit / .land / .river / .grid-q すべて対象） */
+function applyFamilyRestriction(svgEl, regionId, targetFamily){
+  const kindById = {};
+  validParts(regionId).forEach(p=>{ kindById[p.id] = p.kind; });
+  svgEl.querySelectorAll("[data-part]").forEach(el=>{
+    const kind = kindById[el.getAttribute("data-part")];
+    const match = KIND_FAMILY[kind] === targetFamily;
+    el.classList.toggle("family-match", match);
+    el.classList.toggle("family-dim", !match);
+  });
+}
+function clearFamilyRestriction(svgEl){
+  svgEl.querySelectorAll(".family-match,.family-dim").forEach(el=>{
+    el.classList.remove("family-match","family-dim");
+  });
 }
 function highlightIds(svgEl, ids, cls, blink){
   ids.forEach(id=>{
@@ -5999,8 +6049,12 @@ function renderMapQuestion(){
   if(q.dir==="A"){
     document.getElementById("quizTag").textContent = "位置あて";
     document.getElementById("quizText").textContent = `${part.name}はどこ？${hint}`;
+    document.getElementById("quizKindHint").textContent = `「${part.kind}」をタップ`;
+    document.getElementById("quizKindHint").classList.remove("hidden");
+    applyFamilyRestriction(svgEl, state.quiz.region, KIND_FAMILY[part.kind]);
   } else {
     document.getElementById("quizTag").textContent = "名前あて";
+    document.getElementById("quizKindHint").classList.add("hidden");
     let qtext;
     if(part.kind==="緯度") qtext = "この線は北緯何度？";
     else if(part.kind==="経度") qtext = "この線は東経何度？";
@@ -6010,8 +6064,7 @@ function renderMapQuestion(){
     setMarkersDimmed(svgEl, true);
     centerOnPart(part);
 
-    const isGrid = (part.kind==="緯度"||part.kind==="経度");
-    const useDesc = isGrid || state.quiz.formMode==="desc";
+    const useDesc = state.quiz.formMode==="desc";
     if(useDesc) renderDescInput(part, body);
     else renderMcChoices(part, body);
   }
@@ -6019,15 +6072,22 @@ function renderMapQuestion(){
 
 function renderMcChoices(part, body){
   const all = validParts(state.quiz.region);
-  let pool = all.filter(p=>p.id!==part.id && p.kind===part.kind);
-  if(pool.length<3){
-    pool = pool.concat(all.filter(p=>p.id!==part.id && p.kind!==part.kind && KIND_FAMILY[p.kind]===KIND_FAMILY[part.kind] && pool.indexOf(p)<0));
+  // (a) 同一kindを優先
+  const samePool = all.filter(p=>p.id!==part.id && p.kind===part.kind);
+  let dummies = pickMcDummies(samePool, 3, buildExcludeSet(part));
+  // (b) 3個未満なら同一ファミリー（別kind）で補う。他ファミリーからの補充はしない
+  if(dummies.length < 3){
+    const family = KIND_FAMILY[part.kind];
+    const familyPool = all.filter(p=>p.id!==part.id && p.kind!==part.kind && KIND_FAMILY[p.kind]===family);
+    const need = 3 - dummies.length;
+    const extra = pickMcDummies(familyPool, need, buildExcludeSet(part, dummies));
+    dummies = dummies.concat(extra);
   }
-  if(pool.length<3){
-    pool = pool.concat(all.filter(p=>p.id!==part.id && pool.indexOf(p)<0));
+  // (c) それでもダミーがゼロなら4択が成立しないため記述にフォールバック
+  if(dummies.length === 0){
+    renderDescInput(part, body);
+    return;
   }
-  const excludeNames = [part.name].concat(part.alt||[]);
-  const dummies = pickDistinct(pool, 3, excludeNames);
   const choices = shuffle([part].concat(dummies));
   choices.forEach(c=>{
     const b = document.createElement("button");
@@ -6082,6 +6142,7 @@ function gradeDirectionA(tappedId){
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   setMarkersDimmed(svgEl, false);
   clearActive(svgEl);
+  clearFamilyRestriction(svgEl);
   const ok = tappedId===part.id;
   if(!ok) highlightIds(svgEl, [tappedId], "part-wrong", false);
   highlightIds(svgEl, [part.id], "part-correct", true);
