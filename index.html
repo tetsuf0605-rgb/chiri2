@@ -5495,6 +5495,19 @@ const KIND_FAMILY = {
   "川":"川","都市":"都市","緯度":"線","経度":"線"
 };
 
+/* センタリング時のズーム倍率（kind別）。都市/海峡/峠/山/岬=2.5、島/湖/川=1.8、
+   海/砂漠/山脈/平原/高原/地方/緯線経線=1.2（ほぼ全体表示）。未分類はデフォルト値。 */
+const ZOOM_CLOSE = 2.5, ZOOM_MID = 1.8, ZOOM_WIDE = 1.2;
+const KIND_ZOOM = {
+  "都市":ZOOM_CLOSE, "海峡":ZOOM_CLOSE, "峠":ZOOM_CLOSE, "山":ZOOM_CLOSE, "岬":ZOOM_CLOSE,
+  "地峡":ZOOM_CLOSE, "湾":ZOOM_CLOSE, "運河":ZOOM_CLOSE, "地形":ZOOM_CLOSE,
+  "島":ZOOM_MID, "湖":ZOOM_MID, "川":ZOOM_MID, "諸島":ZOOM_MID, "海岸":ZOOM_MID, "海溝":ZOOM_MID,
+  "海":ZOOM_WIDE, "砂漠":ZOOM_WIDE, "山脈":ZOOM_WIDE, "平原":ZOOM_WIDE, "高原":ZOOM_WIDE,
+  "地方":ZOOM_WIDE, "緯線":ZOOM_WIDE, "経線":ZOOM_WIDE, "緯度":ZOOM_WIDE, "経度":ZOOM_WIDE,
+  "半島":ZOOM_WIDE, "台地":ZOOM_WIDE, "盆地":ZOOM_WIDE, "高地":ZOOM_WIDE, "海流":ZOOM_WIDE,
+};
+const ZOOM_DEFAULT = ZOOM_MID;
+
 /* ---------- 地域データ（訂正マージ＋SVG突合の安全装置） ---------- */
 function regionById(id){ return MAPS.find(m=>m.id===id); }
 function effectiveParts(regionId){
@@ -5528,12 +5541,13 @@ function PanZoom(viewportEl){
   this.minScale=1; this.maxScale=5;
   this.pointers = new Map();
   this.dragging=false; this.startDist=0; this.startScale=1; this.startMid=null; this.moved=false;
-  this.onTap=null;
+  this.onTap=null; this._animFrame=null;
   this._bind();
 }
 PanZoom.prototype._bind = function(){
   const vp = this.vp;
   vp.addEventListener("pointerdown", e=>{
+    if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
     vp.setPointerCapture(e.pointerId);
     this.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
     this.moved=false;
@@ -5592,8 +5606,12 @@ PanZoom.prototype._apply = function(){
   if(this.svg) this.svg.style.transform = `translate(${this.tx}px,${this.ty}px) scale(${this.scale})`;
 };
 PanZoom.prototype.setSvg = function(svgEl){ this.svg = svgEl; this.reset(); };
-PanZoom.prototype.reset = function(){ this.scale=1; this.tx=0; this.ty=0; this._apply(); };
+PanZoom.prototype.reset = function(){
+  if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
+  this.scale=1; this.tx=0; this.ty=0; this._apply();
+};
 PanZoom.prototype.zoomBy = function(f){
+  if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
   const rect=this.vp.getBoundingClientRect();
   const cx=rect.width/2, cy=rect.height/2;
   const ns = Math.max(this.minScale, Math.min(this.maxScale, this.scale*f));
@@ -5601,27 +5619,38 @@ PanZoom.prototype.zoomBy = function(f){
   this.tx = cx-(cx-this.tx)*k; this.ty = cy-(cy-this.ty)*k;
   this.scale = ns; this._clamp(); this._apply();
 };
-PanZoom.prototype.focusOnIds = function(ids){
-  if(!this.svg) return;
-  let box=null;
-  ids.forEach(id=>{
-    this.svg.querySelectorAll('[data-part="'+CSS.escape(id)+'"]').forEach(el=>{
-      try{
-        const b = el.getBBox();
-        if(!box) box = {x1:b.x,y1:b.y,x2:b.x+b.width,y2:b.y+b.height};
-        else { box.x1=Math.min(box.x1,b.x); box.y1=Math.min(box.y1,b.y); box.x2=Math.max(box.x2,b.x+b.width); box.y2=Math.max(box.y2,b.y+b.height); }
-      }catch(e){}
-    });
-  });
-  if(!box) return;
+/* bboxOf: {x1,y1,x2,y2}(svg viewBox単位) の中心を、指定scaleで画面中央に来るようアニメーション付きでパン・ズームする */
+PanZoom.prototype.animateToBBox = function(box, targetScale){
+  if(!this.svg || !box) return;
   const vb = this.svg.viewBox.baseVal;
   const rect = this.vp.getBoundingClientRect();
   const pxPerUnit = rect.width/vb.width;
+  const ns = Math.max(this.minScale, Math.min(this.maxScale, targetScale));
   const cx=(box.x1+box.x2)/2*pxPerUnit, cy=(box.y1+box.y2)/2*pxPerUnit;
-  const ns = Math.min(this.maxScale, Math.max(2.2, this.minScale));
-  this.scale = ns;
-  this.tx = rect.width/2 - cx*ns; this.ty = rect.height/2 - cy*ns;
-  this._clamp(); this._apply();
+  let targetTx = rect.width/2 - cx*ns;
+  let targetTy = rect.height/2 - cy*ns;
+  const w = rect.width*ns, h = rect.height*ns;
+  const minTx = Math.min(0, rect.width-w), minTy = Math.min(0, rect.height-h);
+  targetTx = Math.max(minTx, Math.min(0, targetTx));
+  targetTy = Math.max(minTy, Math.min(0, targetTy));
+  this._animateValues(ns, targetTx, targetTy);
+};
+PanZoom.prototype._animateValues = function(targetScale, targetTx, targetTy){
+  if(this._animFrame){ cancelAnimationFrame(this._animFrame); this._animFrame=null; }
+  const startScale=this.scale, startTx=this.tx, startTy=this.ty;
+  const dur=300, t0=performance.now();
+  const ease = t=>1-Math.pow(1-t,3); // ease-out cubic
+  const step = now=>{
+    const t = Math.min(1, (now-t0)/dur);
+    const e = ease(t);
+    this.scale = startScale + (targetScale-startScale)*e;
+    this.tx = startTx + (targetTx-startTx)*e;
+    this.ty = startTy + (targetTy-startTy)*e;
+    this._apply();
+    if(t<1){ this._animFrame = requestAnimationFrame(step); }
+    else{ this._animFrame=null; this.scale=targetScale; this.tx=targetTx; this.ty=targetTy; this._apply(); }
+  };
+  this._animFrame = requestAnimationFrame(step);
 };
 
 let mapPanZoom = null;
@@ -5794,6 +5823,43 @@ function highlightIds(svgEl, ids, cls, blink){
   });
 }
 
+/* 指定パーツを中心にアニメーション付きでパン・ズームする。
+   島/諸島はポリゴン(.land)のbboxがあればそれに収まるズームでフィットし、
+   それ以外はマーカーの位置へ kind別の固定ズームでセンタリングする。 */
+function centerOnPart(part){
+  if(!mapPanZoom || !mapPanZoom.svg) return;
+  const svgEl = mapPanZoom.svg;
+  let scale = KIND_ZOOM[part.kind] || ZOOM_DEFAULT;
+  let box = null;
+
+  if(part.kind==="島" || part.kind==="諸島"){
+    const shapeEl = svgEl.querySelector('.land[data-part="'+CSS.escape(part.id)+'"]');
+    if(shapeEl){
+      try{
+        const b = shapeEl.getBBox();
+        box = {x1:b.x, y1:b.y, x2:b.x+b.width, y2:b.y+b.height};
+        const rect = mapPanZoom.vp.getBoundingClientRect();
+        const vb = svgEl.viewBox.baseVal;
+        const pxPerUnit = rect.width/vb.width;
+        const fitX = (rect.width*0.62)/(b.width*pxPerUnit || 1);
+        const fitY = (rect.height*0.62)/(b.height*pxPerUnit || 1);
+        scale = Math.max(mapPanZoom.minScale, Math.min(fitX, fitY));
+      }catch(e){ box=null; }
+    }
+  }
+  if(!box){
+    // マーカーは <g transform="translate(x,y)"> なので getBBox() は変換前(原点付近)の
+    // 座標しか返さない。実際の位置は transform 属性から直接読み取る。
+    const markerEl = svgEl.querySelector('.marker[data-part="'+CSS.escape(part.id)+'"]');
+    if(!markerEl) return;
+    const m = /translate\(\s*(-?[\d.]+)[ ,]\s*(-?[\d.]+)\s*\)/.exec(markerEl.getAttribute("transform")||"");
+    if(!m) return;
+    const px = parseFloat(m[1]), py = parseFloat(m[2]);
+    box = {x1:px, y1:py, x2:px, y2:py};
+  }
+  mapPanZoom.animateToBBox(box, scale);
+}
+
 function bindMapTapHandler(svgEl){
   // PanZoom uses setPointerCapture on the viewport, which retargets the
   // native "click" event away from descendant SVG elements — so tap
@@ -5843,7 +5909,7 @@ function renderMapQuestion(){
     else qtext = `この${part.kind}の名前は？${hint}`;
     document.getElementById("quizText").textContent = qtext;
     highlightIds(svgEl, [part.id], "part-target", false);
-    mapPanZoom.focusOnIds([part.id]);
+    centerOnPart(part);
 
     const isGrid = (part.kind==="緯度"||part.kind==="経度");
     const useDesc = isGrid || state.quiz.formMode==="desc";
@@ -5918,7 +5984,7 @@ function gradeDirectionA(tappedId){
   const ok = tappedId===part.id;
   if(!ok) highlightIds(svgEl, [tappedId], "part-wrong", false);
   highlightIds(svgEl, [part.id], "part-correct", true);
-  mapPanZoom.focusOnIds([part.id, tappedId]);
+  centerOnPart(part);
   const fb = document.getElementById("quizFeedback");
   fb.innerHTML = ok
     ? `<div class="fb ok"><b>○ 正解！</b></div>`
@@ -5936,6 +6002,7 @@ function gradeDirectionBChoice(part, ok, btnEl){
   if(!ok) btnEl.classList.remove("dim"), btnEl.classList.add("wrong");
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   highlightIds(svgEl, [part.id], "part-correct", true);
+  centerOnPart(part);
   const fb = document.getElementById("quizFeedback");
   if(!ok) fb.innerHTML = `<div class="fb ng"><b>正解：${escapeHtml(part.name)}</b></div>`;
   else fb.innerHTML = `<div class="fb ok"><b>○ 正解！</b></div>`;
@@ -5948,6 +6015,7 @@ function finishQuestion(part, ok){
   state.quiz.answered = true;
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
   highlightIds(svgEl, [part.id], "part-correct", true);
+  centerOnPart(part);
   recordResult(state.quiz.region, part, q.dir, ok);
   document.getElementById("quizNextBtn").classList.remove("hidden");
   document.getElementById("quizScore").textContent = "正解 "+state.quiz.score;
