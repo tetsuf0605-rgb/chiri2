@@ -1125,6 +1125,7 @@ def build(region_key):
         marker_svg.append(
             f'<g class="marker {kind_cls}" data-part="{part["id"]}" data-kind="{part["kind"]}" '
             f'transform="translate({mx:.1f},{my:.1f})">'
+            f'<circle class="pulse-ring" r="6"/>'
             f'<circle class="hit" r="16"/>{marker_shape(kind_cls)}</g>'
         )
 

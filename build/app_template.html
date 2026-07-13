@@ -117,9 +117,36 @@ button,input,textarea{font-family:inherit}
 .legend-swatch svg{width:12px;height:12px;overflow:visible}
 
 /* part highlight states (targets svg internals) */
-.part-target .dot{fill:#ff9500 !important}
-.part-target.land,.part-target.river{stroke:#ff9500 !important;stroke-width:3 !important}
-.part-target.grid-q{stroke:#ff9500 !important;stroke-width:2.6 !important}
+
+/* 出題対象マーカー（is-active）：外側にパルスリング＋本体を拡大して赤系に */
+@keyframes pulseRing{
+  0%{transform:scale(1);opacity:.55}
+  100%{transform:scale(3.2);opacity:0}
+}
+.pulse-ring{fill:none;stroke:#ff3b30;stroke-width:2;opacity:0;pointer-events:none;
+  transform-box:fill-box;transform-origin:center}
+.marker.is-active .pulse-ring{animation:pulseRing 1.5s ease-out infinite}
+.marker.is-active .dot{
+  fill:#ff3b30 !important;stroke:#fff;stroke-width:1.6;
+  transform-box:fill-box;transform-origin:center;transform:scale(1.5);
+}
+/* m-strait の dot は rotate(45) の属性transformを持つため、is-active側のCSS transformで
+   上書きする際に回転ぶんを引き継いで合成する（transform属性はCSS transformで丸ごと
+   置き換わるため、失われないよう明示的に指定する） */
+.m-strait.is-active .dot{transform:rotate(45deg) scale(1.5)}
+
+/* 対象がポリゴン/ライン(.part-shape)を持つ場合は同色でゆっくり明滅させる */
+@keyframes shapePulse{0%,100%{opacity:.4}50%{opacity:.9}}
+.land.is-active{fill:#ff3b30 !important;stroke:#ff3b30 !important;animation:shapePulse 2s ease-in-out infinite}
+.river.is-active{stroke:#ff3b30 !important;stroke-width:2.6 !important;animation:shapePulse 2s ease-in-out infinite}
+.grid-q.is-active{stroke:#ff3b30 !important;stroke-width:2.6 !important;animation:shapePulse 2s ease-in-out infinite}
+
+/* 出題中は他のマーカーを減光して対象を目立たせる。解答表示後は #markers から
+   dimmed クラスを外して元に戻す */
+#markers .marker{transition:opacity .3s}
+#markers.dimmed .marker:not(.is-active){opacity:.35}
+
+/* 解答表示（正誤） */
 .part-correct .dot{fill:#34c759 !important}
 .part-correct.land,.part-correct.river{stroke:#34c759 !important;stroke-width:3 !important}
 .part-correct.grid-q{stroke:#34c759 !important;stroke-width:2.6 !important}
@@ -770,9 +797,19 @@ document.getElementById("zoomOut").onclick = ()=>mapPanZoom && mapPanZoom.zoomBy
 document.getElementById("zoomReset").onclick = ()=>mapPanZoom && mapPanZoom.reset();
 
 function clearHighlights(svgEl){
-  svgEl.querySelectorAll(".part-target,.part-correct,.part-wrong,.part-blink").forEach(el=>{
-    el.classList.remove("part-target","part-correct","part-wrong","part-blink");
+  svgEl.querySelectorAll(".is-active,.part-correct,.part-wrong,.part-blink").forEach(el=>{
+    el.classList.remove("is-active","part-correct","part-wrong","part-blink");
   });
+  setMarkersDimmed(svgEl, false);
+}
+function setMarkersDimmed(svgEl, dimmed){
+  const markers = svgEl.querySelector("#markers");
+  if(markers) markers.classList.toggle("dimmed", dimmed);
+}
+function clearActive(svgEl){
+  // is-active の赤(fill/stroke !important)は part-correct/part-wrong より詳細度が高く
+  // 上書きしてしまうため、解答表示の直前に必ず外す
+  svgEl.querySelectorAll(".is-active").forEach(el=>el.classList.remove("is-active"));
 }
 function highlightIds(svgEl, ids, cls, blink){
   ids.forEach(id=>{
@@ -891,7 +928,8 @@ function renderMapQuestion(){
     else if(part.kind==="経度") qtext = "この線は東経何度？";
     else qtext = `この${part.kind}の名前は？${hint}`;
     document.getElementById("quizText").textContent = qtext;
-    highlightIds(svgEl, [part.id], "part-target", false);
+    highlightIds(svgEl, [part.id], "is-active", false);
+    setMarkersDimmed(svgEl, true);
     centerOnPart(part);
 
     const isGrid = (part.kind==="緯度"||part.kind==="経度");
@@ -964,6 +1002,8 @@ function gradeDirectionA(tappedId){
   const part = q.part;
   state.quiz.answered = true;
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  setMarkersDimmed(svgEl, false);
+  clearActive(svgEl);
   const ok = tappedId===part.id;
   if(!ok) highlightIds(svgEl, [tappedId], "part-wrong", false);
   highlightIds(svgEl, [part.id], "part-correct", true);
@@ -984,6 +1024,8 @@ function gradeDirectionBChoice(part, ok, btnEl){
   });
   if(!ok) btnEl.classList.remove("dim"), btnEl.classList.add("wrong");
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  setMarkersDimmed(svgEl, false);
+  clearActive(svgEl);
   highlightIds(svgEl, [part.id], "part-correct", true);
   centerOnPart(part);
   const fb = document.getElementById("quizFeedback");
@@ -997,6 +1039,8 @@ function finishQuestion(part, ok){
   const q = state.quiz.items[state.quiz.idx];
   state.quiz.answered = true;
   const svgEl = document.getElementById("mapSvgHost").querySelector("svg");
+  setMarkersDimmed(svgEl, false);
+  clearActive(svgEl);
   highlightIds(svgEl, [part.id], "part-correct", true);
   centerOnPart(part);
   recordResult(state.quiz.region, part, q.dir, ok);
